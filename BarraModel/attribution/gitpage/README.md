@@ -6,6 +6,7 @@ This folder is the GitHub Pages static site for attribution demo.
 
 - Uses a UI almost identical to `BarraModel/attribution/frontend` (including tabs).
 - Loads only bundled sample data: `./data/sample_payload.json`.
+- The sample keeps full portfolio-level sections and a trimmed stock-level subset for GitHub Pages performance.
 - Does not call backend APIs.
 - Disables `Validate / Run Attribution / Load Run / Upload payload` actions in GitHub Pages mode.
 

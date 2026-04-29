@@ -1,41 +1,37 @@
-# Barra Attribution GitHub Pages (Static)
+# Barra Attribution GitHub Pages (Static Frontend-Like UI)
 
-這個資料夾是純靜態展示版，專供 GitHub Pages 發佈使用。
+This folder is the GitHub Pages static site for attribution demo.
 
-## 特性
+## What this version does
 
-- 僅讀取 `./data/sample_payload.json` 範例資料
-- 不含任何 API 呼叫
-- 不含 `Validate / Run Attribution / Load Run` 等後端運算流程
-- 已配好自動部署 workflow：`.github/workflows/deploy-barra-gitpage.yml`
+- Uses a UI almost identical to `BarraModel/attribution/frontend` (including tabs).
+- Loads only bundled sample data: `./data/sample_payload.json`.
+- Does not call backend APIs.
+- Disables `Validate / Run Attribution / Load Run / Upload payload` actions in GitHub Pages mode.
 
-## 檔案結構
+## Files
 
-- `index.html`: 主頁
-- `styles.css`: 樣式
-- `app.js`: 前端渲染邏輯
-- `data/sample_payload.json`: 範例資料（來源：`simulate_data/api_runs/era_smoke2/frontend_payload.json`）
+- `index.html`: page structure (frontend-like layout)
+- `styles.css`: same visual style as frontend
+- `app.js`: frontend logic with static-sample mode enabled
+- `data/sample_payload.json`: sample payload used for rendering
 
-## 本機預覽
+## Local preview
 
-在 `BarraModel/attribution/gitpage` 目錄下啟動靜態伺服器：
+From `BarraModel/attribution/gitpage`:
 
 ```powershell
 python -m http.server 8080
 ```
 
-打開：`http://127.0.0.1:8080`
+Then open:
 
-## 最方便上線方式（已設定）
+`http://127.0.0.1:8080`
 
-這個 repo 現在是「推上 GitHub 就部署」模式：
+## Deployment
 
-1. Push 到 `main` 或 `master`。
-2. GitHub Actions 會自動把 `BarraModel/attribution/gitpage` 部署到 Pages。
+Deployment is handled by:
 
-## 你只要做一次的 GitHub 設定
+`/.github/workflows/deploy-barra-gitpage.yml`
 
-1. 到 repo `Settings` → `Pages`
-2. Source 選 `GitHub Actions`
-
-之後只要更新 `BarraModel/attribution/gitpage` 底下檔案並 push，就會自動更新網站。
+Push to `main` or `master`, and GitHub Actions deploys this folder to GitHub Pages.

@@ -1,86 +1,429 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Barra Attribution Sample Dashboard</title>
+  <title>Barra Attribution Workbench</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <div class="bg-noise" aria-hidden="true"></div>
-  <header class="hero">
-    <div>
-      <p class="eyebrow">Barra Attribution</p>
-      <h1>Sample Data Dashboard</h1>
-      <p class="subtitle">GitHub Pages 靜態展示版本，僅使用範例資料，不含後端運算。</p>
+  <div class="aura aura-1" aria-hidden="true"></div>
+  <div class="aura aura-2" aria-hidden="true"></div>
+
+  <header id="tourTopbar" class="topbar reveal">
+    <div class="brand">
+      <p class="eyebrow">Active Equity Analytics</p>
+      <h1>Barra Attribution Workbench</h1>
+      <p class="subtitle">績效歸因、因子風險與驗證流程的一站式前端</p>
     </div>
-    <div class="status">
-      <span class="status-label">Data Source</span>
-      <strong id="dataSourceLabel">./data/sample_payload.json</strong>
-      <span class="status-label">Load Status</span>
-      <strong id="loadStatus">載入中...</strong>
+    <div class="topbar-actions">
+      <button id="btnOpenTourTop" class="btn btn-muted tour-entry-btn" type="button">操作導覽</button>
+      <div class="meta-pill">
+        <span>Mode</span>
+        <strong id="dataMode">尚未載入</strong>
+      </div>
     </div>
   </header>
 
-  <main class="layout">
-    <section class="card">
-      <div class="card-head">
-        <h2>Summary KPI</h2>
-        <p id="summaryCaption">--</p>
-      </div>
-      <div id="kpiGrid" class="kpi-grid"></div>
-    </section>
+  <nav id="mainTabs" class="tabs reveal" aria-label="Main views">
+    <button type="button" class="tab-btn active" data-tab="input">0. 輸入資料與參數設定</button>
+    <button type="button" class="tab-btn" data-tab="portfolio">1. 投組層級因子貢獻</button>
+    <button type="button" class="tab-btn" data-tab="stock">2. 個股層級因子貢獻</button>
+  </nav>
 
-    <section class="card">
-      <div class="card-head">
-        <h2>Cumulative Return Trajectory</h2>
-        <p>Portfolio / Benchmark / Active Spread</p>
-      </div>
-      <svg id="returnChart" viewBox="0 0 980 340" role="img" aria-label="cumulative return chart"></svg>
-      <div class="legend">
-        <div><i class="swatch swatch-portfolio"></i> Portfolio</div>
-        <div><i class="swatch swatch-benchmark"></i> Benchmark</div>
-        <div><i class="swatch swatch-active"></i> Active</div>
-      </div>
-    </section>
+  <main id="pageLayout" class="page">
+    <aside id="runConsole" class="panel control reveal" data-tab-panel="input">
+      <h2>Run Console</h2>
+      <p class="panel-hint">可直接串 API，或上傳 `frontend_payload.json` 做離線檢視。</p>
 
-    <section class="card">
-      <div class="card-head">
-        <h2>Period Factor Attribution (Latest 1mo)</h2>
-        <p id="periodCaption">--</p>
-      </div>
-      <div id="groupChips" class="chips"></div>
-      <div id="periodTableWrap"></div>
-    </section>
+      <label class="field">
+        <span>API Base URL</span>
+        <input id="apiBaseUrl" type="text" value="http://127.0.0.1:8000" />
+      </label>
 
-    <section class="card">
-      <div class="card-head row">
-        <div>
-          <h2>Risk Decomposition</h2>
-          <p id="riskCaption">--</p>
+      <label class="field">
+        <span>Data Directory</span>
+        <input id="dataDir" type="text" />
+      </label>
+
+      <label class="field">
+        <span>Config Path</span>
+        <input id="configPath" type="text" />
+      </label>
+
+      <label class="field">
+        <span>Output Root</span>
+        <input id="outputRoot" type="text" />
+      </label>
+
+      <label class="field">
+        <span>Run Label (optional)</span>
+        <input id="runLabel" type="text" placeholder="e.g. pm_review_20260428" />
+      </label>
+
+      <section id="scenarioOverrides" class="scenario">
+        <h3>Scenario Overrides</h3>
+        <p class="panel-hint">不改原始 `model_spec.yaml`，直接覆蓋本次 run 參數。頻率請在 Factor Timeseries 區塊調整（僅影響取樣顯示）。</p>
+
+        <label class="field">
+          <span>Industry Mode</span>
+          <select id="ovIndustryMode">
+            <option value="blended" selected>blended</option>
+            <option value="asset_only">asset_only</option>
+            <option value="sales_only">sales_only</option>
+          </select>
+        </label>
+
+        <div class="two-cols">
+          <label class="field">
+            <span>Asset Weight</span>
+            <input id="ovAssetWeight" type="text" value="0.75" />
+          </label>
+          <label class="field">
+            <span>Sales Weight</span>
+            <input id="ovSalesWeight" type="text" value="0.25" />
+          </label>
         </div>
-        <div id="riskModelSwitch" class="switch"></div>
-      </div>
-      <div id="riskTableWrap"></div>
-    </section>
 
-    <section class="card">
-      <div class="card-head">
-        <h2>Validation</h2>
-        <p>歸因重建誤差摘要</p>
-      </div>
-      <div id="validationWrap"></div>
-    </section>
+        <div class="two-cols">
+          <label class="field">
+            <span>Lookback Days</span>
+            <input id="ovLookbackDays" type="text" value="60" />
+          </label>
+          <label class="field">
+            <span>MAR (downside)</span>
+            <input id="ovMar" type="text" value="0.0" />
+          </label>
+        </div>
 
-    <section class="card">
-      <div class="card-head">
-        <h2>Config Snapshot</h2>
-        <p>範例資料中的參數設定</p>
+        <label class="field">
+          <span>ERA Mode</span>
+          <select id="ovEraMode">
+            <option value="none">none</option>
+            <option value="simulated" selected>simulated</option>
+            <option value="scaled">scaled</option>
+          </select>
+        </label>
+
+        <div class="two-cols">
+          <label class="field">
+            <span>ERA Simulations</span>
+            <input id="ovEraNumSim" type="text" value="80" />
+          </label>
+          <label class="field">
+            <span>ERA Scale a</span>
+            <input id="ovEraScaleA" type="text" value="1.4" />
+          </label>
+        </div>
+
+        <div class="two-cols">
+          <label class="field">
+            <span>ERA Ignore Head</span>
+            <input id="ovEraIgnoreHead" type="text" value="15" />
+          </label>
+          <label class="field">
+            <span>ERA Seed</span>
+            <input id="ovEraSeed" type="text" value="20260428" />
+          </label>
+        </div>
+
+        <button id="btnSyncFromPayload" class="btn btn-muted" type="button">Sync From Loaded Payload</button>
+      </section>
+
+      <section id="viewFilters" class="scenario">
+        <h3>View Filters</h3>
+        <p class="panel-hint">套用在 KPI、圖表、因子排名、Risk、Timeseries 與個股歸因。所有年化值先依頻率聚合再換算。</p>
+
+        <div class="two-cols">
+          <label class="field">
+            <span>Date From</span>
+            <input id="filterDateFrom" type="date" />
+          </label>
+          <label class="field">
+            <span>Date To</span>
+            <input id="filterDateTo" type="date" />
+          </label>
+        </div>
+
+        <label class="field">
+          <span>Display Frequency (global)</span>
+          <select id="displayFrequency">
+            <option value="daily">daily</option>
+            <option value="weekly">weekly</option>
+            <option value="monthly" selected>monthly</option>
+            <option value="quarterly">quarterly</option>
+          </select>
+        </label>
+
+        <div class="group-grid">
+          <label class="group-item">
+            <input id="groupStyle" type="checkbox" data-group="style" checked />
+            <span>style</span>
+          </label>
+          <label class="group-item">
+            <input id="groupIndustry" type="checkbox" data-group="industry" checked />
+            <span>industry</span>
+          </label>
+          <label class="group-item">
+            <input id="groupCountry" type="checkbox" data-group="country" checked />
+            <span>country</span>
+          </label>
+          <label class="group-item">
+            <input id="groupCustom" type="checkbox" data-group="custom" checked />
+            <span>custom</span>
+          </label>
+        </div>
+
+        <button id="btnFilterReset" class="btn btn-muted" type="button">Reset View Filters</button>
+      </section>
+
+      <div id="runActions" class="actions">
+        <button id="btnValidate" class="btn btn-muted" type="button">Validate Inputs</button>
+        <button id="btnRun" class="btn btn-primary" type="button">Run Attribution</button>
       </div>
-      <div id="configWrap"></div>
+
+      <section id="runProgressCard" class="run-progress" hidden>
+        <div class="run-progress-head">
+          <span id="runProgressText">尚未開始計算</span>
+          <span id="runProgressEta">ETA --:--</span>
+        </div>
+        <div class="run-progress-track">
+          <i id="runProgressBar"></i>
+        </div>
+        <div class="run-progress-meta">
+          <span id="runProgressPct">0%</span>
+          <span id="runProgressElapsed">Elapsed 00:00</span>
+        </div>
+      </section>
+
+      <div class="field inline">
+        <label>
+          <span>Run ID</span>
+          <input id="runId" type="text" placeholder="load existing run id" />
+        </label>
+        <button id="btnLoadRun" class="btn btn-muted" type="button">Load Run</button>
+      </div>
+
+      <div id="payloadUpload" class="upload-block">
+        <label class="upload-label" for="payloadFile">上傳 `frontend_payload.json`</label>
+        <input id="payloadFile" type="file" accept=".json,application/json" />
+      </div>
+
+      <ul id="logList" class="log-list" aria-live="polite"></ul>
+    </aside>
+
+    <section id="contentMain" class="content">
+      <div id="portfolioTabPanel" class="tab-panel-view" data-tab-panel="portfolio">
+        <section class="kpi-grid reveal" id="kpiGrid"></section>
+
+        <section id="returnChartPanel" class="panel chart reveal">
+          <div class="panel-head">
+            <h2 id="chartTitle">Cumulative Return Trajectory</h2>
+            <p id="chartCaption">尚未載入資料</p>
+          </div>
+          <div class="chart-toolbar">
+            <div class="chart-lines">
+              <label class="group-item"><input id="chartLinePortfolio" type="checkbox" checked /><span>portfolio</span></label>
+              <label class="group-item"><input id="chartLineBenchmark" type="checkbox" checked /><span>benchmark</span></label>
+              <label class="group-item"><input id="chartLineActive" type="checkbox" checked /><span>active spread</span></label>
+            </div>
+            <label class="factor-date-field">
+              <span>起始</span>
+              <input id="chartDateFrom" class="mini-input" type="date" aria-label="chart start date" />
+            </label>
+            <label class="factor-date-field">
+              <span>結束</span>
+              <input id="chartDateTo" class="mini-input" type="date" aria-label="chart end date" />
+            </label>
+            <label class="chart-zoom-field">
+              <span>Zoom</span>
+              <input id="chartZoom" type="range" min="100" max="400" step="25" value="100" />
+              <b id="chartZoomValue">100%</b>
+            </label>
+            <button id="btnChartRangeReset" class="btn btn-muted btn-small" type="button">全期間</button>
+          </div>
+          <svg id="returnChart" viewBox="0 0 900 320" role="img" aria-label="return chart"></svg>
+          <div id="chartLegend" class="legend"></div>
+        </section>
+
+        <section id="groupPanel" class="panel reveal">
+          <div class="panel-head">
+            <h2>Portfolio Group Attribution</h2>
+            <p>大類因子（country / industry / style / custom / specific）年化貢獻彙總</p>
+          </div>
+          <div id="groupAttributionTableWrap"></div>
+        </section>
+
+        <section class="split reveal">
+          <article id="periodPanel" class="panel">
+            <div class="panel-head with-actions">
+              <div>
+                <h2>Period Factor Attribution</h2>
+                <p id="factorRankCaption">顯示 active 因子年化貢獻（含 active_specific）</p>
+              </div>
+              <div class="mini-controls">
+                <select id="periodValueMode" class="mini-input">
+                  <option value="active" selected>active</option>
+                  <option value="non_active">non-active (P/B_ann)</option>
+                </select>
+                <select id="periodSortMode" class="mini-input">
+                  <option value="abs_desc" selected>sort: abs desc</option>
+                  <option value="signed_desc">sort: signed desc</option>
+                  <option value="signed_asc">sort: signed asc</option>
+                </select>
+                <select id="periodShowCount" class="mini-input">
+                  <option value="10">top 10</option>
+                  <option value="20">top 20</option>
+                  <option value="50">top 50</option>
+                  <option value="all" selected>all</option>
+                </select>
+              </div>
+            </div>
+            <div class="group-grid period-groups">
+              <label class="group-item"><input id="periodGroupStyle" type="checkbox" data-group="style" checked /><span>style</span></label>
+              <label class="group-item"><input id="periodGroupIndustry" type="checkbox" data-group="industry" checked /><span>industry</span></label>
+              <label class="group-item"><input id="periodGroupCountry" type="checkbox" data-group="country" checked /><span>country</span></label>
+              <label class="group-item"><input id="periodGroupCustom" type="checkbox" data-group="custom" checked /><span>custom</span></label>
+              <label class="group-item"><input id="periodGroupSpecific" type="checkbox" data-group="specific" checked /><span>specific</span></label>
+            </div>
+            <div id="factorRank" class="factor-rank"></div>
+          </article>
+
+          <article id="validationPanel" class="panel">
+            <div class="panel-head">
+              <h2>Validation</h2>
+              <p>歸因重建誤差監控</p>
+            </div>
+            <div id="validationBox"></div>
+          </article>
+        </section>
+
+        <section id="riskPanel" class="panel reveal">
+          <div class="panel-head with-actions">
+            <div>
+              <h2>Risk Decomposition</h2>
+              <p>可切換 variance-covariance / downside，並以年化風險貢獻顯示</p>
+            </div>
+            <div class="segmented" id="riskModelSwitch">
+              <button type="button" data-model="variance_covariance" class="active">Variance</button>
+              <button type="button" data-model="downside_semicovariance">Downside</button>
+            </div>
+          </div>
+          <div id="riskTableWrap"></div>
+        </section>
+
+        <section id="factorPanel" class="panel reveal">
+          <div class="panel-head with-actions">
+            <div>
+              <h2>Factor Timeseries</h2>
+              <p>先將日頻 raw contribution 聚合為日/週/月/季，再以同頻率換算年化貢獻（頻率由 View Filters 設定）</p>
+            </div>
+          </div>
+          <div class="factor-toolbar">
+            <input id="factorFilter" class="mini-input" type="text" placeholder="filter factor id..." />
+            <select id="factorFrequency" class="mini-input" aria-label="factor frequency">
+              <option value="daily">daily</option>
+              <option value="weekly">weekly</option>
+              <option value="monthly" selected>monthly</option>
+              <option value="quarterly">quarterly</option>
+            </select>
+            <label class="factor-date-field">
+              <span>起始</span>
+              <input id="factorDateFrom" class="mini-input" type="date" aria-label="factor start date" />
+            </label>
+            <label class="factor-date-field">
+              <span>結束</span>
+              <input id="factorDateTo" class="mini-input" type="date" aria-label="factor end date" />
+            </label>
+            <button id="btnFactorDateLatest" class="btn btn-muted btn-small" type="button">最後一天</button>
+          </div>
+          <div id="factorTableWrap"></div>
+        </section>
+      </div>
+
+      <div id="stockTabPanel" class="tab-panel-view" data-tab-panel="stock" hidden>
+        <section id="stockPanel" class="panel reveal">
+          <div class="panel-head">
+            <h2>Stock-Level Attribution</h2>
+            <p>個股層級大類因子與子因子年化貢獻，含投組 / Benchmark 權重</p>
+          </div>
+          <div class="stock-toolbar">
+            <input id="stockFilter" class="mini-input" type="text" placeholder="filter stock id..." />
+            <select id="stockValueMode" class="mini-input">
+              <option value="active" selected>active (A_ann)</option>
+              <option value="non_active">non-active (P/B_ann)</option>
+            </select>
+            <select id="stockFactorGroup" class="mini-input">
+              <option value="all" selected>columns: group totals</option>
+              <option value="style">columns: style subfactors</option>
+              <option value="industry">columns: industry subfactors</option>
+              <option value="country">columns: country subfactors</option>
+              <option value="custom">columns: custom subfactors</option>
+              <option value="specific">columns: specific subfactors</option>
+            </select>
+            <select id="stockSortKey" class="mini-input">
+              <option value="asset_return" selected>sort by annualized return</option>
+              <option value="portfolio_weight">sort by portfolio weight</option>
+              <option value="active_weight">sort by active weight</option>
+              <option value="total_active">sort by annualized active contribution</option>
+            </select>
+            <select id="stockSortDir" class="mini-input">
+              <option value="desc" selected>desc</option>
+              <option value="asc">asc</option>
+            </select>
+            <label class="group-item stock-check">
+              <input id="stockOnlyPortfolioPositive" type="checkbox" checked />
+              <span>僅顯示投組權重 &gt; 0</span>
+            </label>
+          </div>
+          <div id="stockSummaryWrap"></div>
+        </section>
+
+        <section id="stockFactorPanel" class="panel reveal">
+          <div class="panel-head">
+            <h2>Selected Stock Factor Breakdown</h2>
+            <p id="stockDetailCaption">請先在上表選擇個股</p>
+          </div>
+          <div id="stockDetailWrap"></div>
+        </section>
+      </div>
     </section>
   </main>
 
+  <button id="btnOpenConfigFab" class="config-fab" type="button" aria-label="Open Config Snapshot">Config</button>
+  <button id="btnOpenTourFab" class="tour-fab" type="button" aria-label="Open Product Tour">導覽</button>
+
+  <div id="configModal" class="config-modal" aria-hidden="true">
+    <div class="config-modal-scrim"></div>
+    <aside class="config-modal-card" role="dialog" aria-modal="true" aria-labelledby="configModalTitle">
+      <div class="config-modal-head">
+        <h3 id="configModalTitle">Config Snapshot</h3>
+        <button id="btnCloseConfigModal" class="btn btn-muted btn-small" type="button">關閉</button>
+      </div>
+      <p class="config-modal-caption">目前已載入資料使用的核心參數</p>
+      <div id="configModalContent" class="config-modal-content"></div>
+    </aside>
+  </div>
+
+  <div id="tourOverlay" class="tour-overlay" aria-hidden="true">
+    <div class="tour-scrim"></div>
+    <aside class="tour-card" role="dialog" aria-modal="true" aria-labelledby="tourStepTitle">
+      <p id="tourStepCounter" class="tour-counter">Step 1 / 1</p>
+      <h3 id="tourStepTitle">操作導覽</h3>
+      <div id="tourStepBody" class="tour-body"></div>
+      <p id="tourStepTip" class="tour-tip"></p>
+      <div class="tour-nav">
+        <button id="btnTourPrev" class="btn btn-muted" type="button">上一步</button>
+        <button id="btnTourNext" class="btn btn-primary" type="button">下一步</button>
+        <button id="btnTourClose" class="btn btn-muted" type="button">關閉</button>
+      </div>
+    </aside>
+  </div>
   <script type="module" src="./app.js"></script>
 </body>
 </html>
+
+
+
+
+

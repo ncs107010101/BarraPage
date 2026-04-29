@@ -174,48 +174,48 @@ const state = {
 
 const TOUR_STEPS = [
   {
-    title: "蝮質汗",
+    title: "總覽",
     target: "#tourTopbar",
     bodyHtml: `
-      <p>???Ｘ Barra 甇詨?撌乩??堆???璅∪?????皞???銝蝯???/p>
+      <p>這是 Barra Attribution Workbench 的靜態展示版本，使用範例資料呈現結果。</p>
     `,
-    tip: "撱箄降?Ⅱ隤 API 璅∪??璈?payload 璅∪???,
+    tip: "此頁不會呼叫後端 API，只展示 sample payload。",
   },
   {
     title: "Run Console",
     target: "#runConsole",
     bodyHtml: `
-      <p>?ㄐ?其?憛?API ???楝敺?銝血銵?霅?甇詨?閮???/p>
+      <p>此區保留原版介面外觀，但在 GitHub Pages 靜態模式中已停用後端運算動作。</p>
       <ul>
-        <li>Validate Inputs: 瑼Ｘ鞈?甈??臬摰??/li>
-        <li>Run Attribution: ?瑁?璅∪?銝西撓?箇???/li>
+        <li>Validate / Run / Load Run 已停用</li>
+        <li>顯示內容由 sample payload 載入</li>
       </ul>
     `,
-    tip: "??Validate嚗? Run??,
+    tip: "你仍可透過頁籤切換與篩選查看結果。",
   },
   {
-    title: "蝯??憛?,
+    title: "KPI 指標",
     target: "#kpiGrid",
     bodyHtml: `
-      <p>??鈭撐 KPI ?∴?撟游??梢?僑???唳?eta?harpe?nformation Ratio??撘萄銝餃潭 Portfolio嚗??寡? Benchmark ??Active??/p>
+      <p>這裡展示 Portfolio、Benchmark、Active 的累積與年化績效等指標。</p>
     `,
-    tip: "撱箄降?Ⅱ隤?KPI ???祟?賂???銝?蝝舐??梢頠楚??摮?閫??,
+    tip: "切換 View Filters 後，KPI 會跟著更新。",
   },
   {
     title: "Period Attribution",
     target: "#periodPanel",
     bodyHtml: `
-      <p>?臬???active ??non-active嚗/B嚗?銝虫???蝢斤?蝭拚??/p>
+      <p>可檢視因子在期間內的貢獻，支援 active / non-active 觀察模式。</p>
     `,
-    tip: "active 隞?” P-B嚗on-active ???＊蝷?P ??B?迨???鞎Ｙ?誑撟游????憿舐內??,
+    tip: "可搭配排序與群組勾選快速看重點因子。",
   },
   {
-    title: "Risk ??Timeseries",
+    title: "Risk 與 Timeseries",
     target: "#riskPanel",
     bodyHtml: `
-      <p>Risk Decomposition ??Factor Timeseries ??靘/????摮????????蝞僑??潦?/p>
+      <p>可切換風險模型並查看風險拆解，同時搭配因子時間序列追蹤。</p>
     `,
-    tip: "??撟游?憸券鞎Ｙ蝯?嚗??? timeseries ?餌?瑼Ｚ???霈???,
+    tip: "所有內容均來自已打包的 sample payload。",
   },
 ];
 
@@ -308,7 +308,7 @@ function renderTourStep() {
     dom.btnTourPrev.disabled = idx === 0;
   }
   if (dom.btnTourNext) {
-    dom.btnTourNext.textContent = idx >= TOUR_STEPS.length - 1 ? "摰?撠汗" : "銝?甇?;
+    dom.btnTourNext.textContent = idx >= TOUR_STEPS.length - 1 ? "完成導覽" : "下一步";
   }
 
   applyTourTarget(step.target);
@@ -479,7 +479,7 @@ function initialize() {
     setupStaticDemoUi();
     loadBundledSamplePayload();
   }
-  log("?垢撌脣?憪?嚗?敺????乓?);
+  log("前端已初始化。");
 }
 
 function setScenarioDefaults() {
@@ -505,7 +505,7 @@ function onIndustryModeChange() {
 function onSyncFromPayload() {
   const cfg = state.payload?.meta?.config;
   if (!cfg) {
-    log("?桀?撠頛 payload嚗瘜?甇亥身摰?, "error");
+    log("目前尚未載入 payload，無法同步設定。", "error");
     return;
   }
   try {
@@ -524,7 +524,7 @@ function onSyncFromPayload() {
     dom.ovEraSeed.value = String(risk.factor_era_seed ?? dom.ovEraSeed.value);
 
     onIndustryModeChange();
-    log("撌脖蝙??payload config ?湔 Scenario Overrides??, "success");
+    log("已用 payload config 同步 Scenario Overrides。", "success");
   } catch (err) {
     log(`?郊 Scenario Overrides 憭望?: ${err.message}`, "error");
   }
@@ -1235,7 +1235,7 @@ function startRunProgress() {
   state.runProgress.startedAt = Date.now();
   state.runProgress.estimatedMs = estimateRunDurationMs();
   state.runProgress.progress = 5;
-  renderRunProgress(5, "撌脤閮?隢?嚗?敺?蝡臬???, 0, state.runProgress.estimatedMs);
+  renderRunProgress(5, "開始執行中...", 0, state.runProgress.estimatedMs);
   state.runProgress.timerId = window.setInterval(() => {
     const elapsed = Date.now() - state.runProgress.startedAt;
     const estimated = state.runProgress.estimatedMs || 60_000;
@@ -1366,7 +1366,7 @@ async function onRun() {
 async function onLoadRun() {
   const runId = dom.runId.value.trim();
   if (!runId) {
-    log("隢?頛詨 run id??, "error");
+    log("請先輸入 run id。", "error");
     return;
   }
   await loadRunPayload(runId);
@@ -2379,7 +2379,7 @@ function renderStockPanels() {
 
   if (summary.length === 0) {
     dom.stockSummaryWrap.innerHTML = `<p class="empty">?桀?瘝?蝚血?蝭拚璇辣?鞈???/p>`;
-    dom.stockDetailCaption.textContent = "隢矽?渡祟?豢?隞?;
+    dom.stockDetailCaption.textContent = "找不到符合條件的個股。";
     dom.stockDetailWrap.innerHTML = "";
     return;
   }

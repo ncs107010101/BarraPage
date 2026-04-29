@@ -2820,7 +2820,41 @@ function escapeHtml(text) {
     .replaceAll("'", "&#39;");
 }
 
-initialize();
+function initTabFallback() {
+  const tabsRoot = document.getElementById("mainTabs");
+  if (!tabsRoot) return;
+  tabsRoot.addEventListener("click", (event) => {
+    const btn = event.target.closest("button[data-tab]");
+    if (!btn) return;
+    const tab = String(btn.dataset.tab || "");
+    if (!tab) return;
+    const runConsole = document.getElementById("runConsole");
+    const contentMain = document.getElementById("contentMain");
+    const portfolioPanel = document.getElementById("portfolioTabPanel");
+    const stockPanel = document.getElementById("stockTabPanel");
+    const pageLayout = document.getElementById("pageLayout");
+
+    const isInput = tab === "input";
+    const isPortfolio = tab === "portfolio";
+    const isStock = tab === "stock";
+    if (runConsole) runConsole.hidden = !isInput;
+    if (contentMain) contentMain.hidden = isInput;
+    if (portfolioPanel) portfolioPanel.hidden = !isPortfolio;
+    if (stockPanel) stockPanel.hidden = !isStock;
+    if (pageLayout) pageLayout.classList.toggle("single-column", !isInput);
+
+    for (const node of tabsRoot.querySelectorAll("button[data-tab]")) {
+      node.classList.toggle("active", node === btn);
+    }
+  });
+}
+
+try {
+  initialize();
+} catch (err) {
+  console.error("initialize failed:", err);
+  initTabFallback();
+}
 
 
 

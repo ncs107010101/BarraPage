@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Barra Attribution Sample Dashboard</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="bg-noise" aria-hidden="true"></div>
+  <header class="hero">
+    <div>
+      <p class="eyebrow">Barra Attribution</p>
+      <h1>Sample Data Dashboard</h1>
+      <p class="subtitle">GitHub Pages 靜態展示版本，僅使用範例資料，不含後端運算。</p>
+    </div>
+    <div class="status">
+      <span class="status-label">Data Source</span>
+      <strong id="dataSourceLabel">./data/sample_payload.json</strong>
+      <span class="status-label">Load Status</span>
+      <strong id="loadStatus">載入中...</strong>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="card">
+      <div class="card-head">
+        <h2>Summary KPI</h2>
+        <p id="summaryCaption">--</p>
+      </div>
+      <div id="kpiGrid" class="kpi-grid"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Cumulative Return Trajectory</h2>
+        <p>Portfolio / Benchmark / Active Spread</p>
+      </div>
+      <svg id="returnChart" viewBox="0 0 980 340" role="img" aria-label="cumulative return chart"></svg>
+      <div class="legend">
+        <div><i class="swatch swatch-portfolio"></i> Portfolio</div>
+        <div><i class="swatch swatch-benchmark"></i> Benchmark</div>
+        <div><i class="swatch swatch-active"></i> Active</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Period Factor Attribution (Latest 1mo)</h2>
+        <p id="periodCaption">--</p>
+      </div>
+      <div id="groupChips" class="chips"></div>
+      <div id="periodTableWrap"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head row">
+        <div>
+          <h2>Risk Decomposition</h2>
+          <p id="riskCaption">--</p>
+        </div>
+        <div id="riskModelSwitch" class="switch"></div>
+      </div>
+      <div id="riskTableWrap"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Validation</h2>
+        <p>歸因重建誤差摘要</p>
+      </div>
+      <div id="validationWrap"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Config Snapshot</h2>
+        <p>範例資料中的參數設定</p>
+      </div>
+      <div id="configWrap"></div>
+    </section>
+  </main>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

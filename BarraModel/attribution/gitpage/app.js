@@ -112,6 +112,7 @@ const TOUR_ACTIVE_CLASS = "tour-target-active";
 const RUN_DURATION_STORE_KEY = "barra_attribution_run_durations_ms_v1";
 const STATIC_DEMO_MODE = true;
 const STATIC_SAMPLE_PAYLOAD_URL = "./data/sample_payload.json";
+const STATIC_STOCK_CHUNKS_MANIFEST_URL = "./data/stock_chunks_manifest.json";
 
 const state = {
   runMeta: null,
@@ -1471,16 +1472,67 @@ async function loadBundledSamplePayload() {
     state.stockCache.summaryKey = "";
     state.stockCache.summaryRows = [];
     state.mode = "static-sample";
-    dom.dataMode.textContent = "Static Sample Loaded";
+    dom.dataMode.textContent = "Static Sample Loaded (loading full stock data...)";
     initializeViewFiltersFromPayload();
     syncFactorTableRangeWithCurrentData(true);
     state.stockView.selectedAssetId = "";
     renderAll();
     setActiveTab("portfolio");
     log("Static sample payload loaded.", "success");
+    void loadBundledStockChunks();
   } catch (err) {
     log(`Static sample payload load failed: ${err.message}`, "error");
     dom.dataMode.textContent = "Static Sample Error";
+  }
+}
+
+async function loadBundledStockChunks() {
+  try {
+    const manifestResp = await fetch(STATIC_STOCK_CHUNKS_MANIFEST_URL, { cache: "no-store" });
+    if (!manifestResp.ok) {
+      throw new Error(`manifest HTTP ${manifestResp.status} ${manifestResp.statusText}`);
+    }
+    const manifest = await manifestResp.json();
+    const chunks = Array.isArray(manifest?.chunks) ? manifest.chunks : [];
+    if (chunks.length === 0) {
+      dom.dataMode.textContent = "Static Sample Loaded";
+      log("No stock chunks configured; keeping empty stock_contributions.", "error");
+      return;
+    }
+
+    const allRows = [];
+    for (let i = 0; i < chunks.length; i += 1) {
+      const item = chunks[i] ?? {};
+      const path = String(item.path ?? "").trim();
+      if (!path) continue;
+      dom.dataMode.textContent = `Static Sample Loaded (stock chunk ${i + 1}/${chunks.length})`;
+      const resp = await fetch(path, { cache: "no-store" });
+      if (!resp.ok) {
+        throw new Error(`chunk ${i + 1} HTTP ${resp.status} ${resp.statusText}`);
+      }
+      const part = await resp.json();
+      if (Array.isArray(part)) {
+        allRows.push(...part);
+      } else {
+        throw new Error(`chunk ${i + 1} is not an array`);
+      }
+    }
+
+    if (!state.payload || typeof state.payload !== "object") {
+      state.payload = {};
+    }
+    state.payload.stock_contributions = allRows;
+    state.stockCache.rowsKey = "";
+    state.stockCache.filteredRows = [];
+    state.stockCache.summaryKey = "";
+    state.stockCache.summaryRows = [];
+    state.stockView.selectedAssetId = "";
+    dom.dataMode.textContent = `Static Sample Loaded (${allRows.length} stock rows)`;
+    renderStockPanels();
+    log(`Loaded full stock_contributions from chunks: ${allRows.length} rows.`, "success");
+  } catch (err) {
+    log(`Static stock chunk load failed: ${err.message}`, "error");
+    dom.dataMode.textContent = "Static Sample Loaded (stock chunk load failed)";
   }
 }
 function onRiskModelSwitch(event) {

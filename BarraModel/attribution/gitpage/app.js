@@ -2481,6 +2481,7 @@ function renderStockPanels() {
       <thead>
         <tr>
           <th>asset_id</th>
+          <th>latest_date</th>
           <th>portfolio_w</th>
           <th>benchmark_w</th>
           <th>active_w</th>
@@ -2534,6 +2535,7 @@ function renderStockPanels() {
             }
             return `<tr class="clickable-row ${selected}" data-stock-id="${escapeHtml(row.asset_id)}">
               <td>${escapeHtml(row.asset_id)}</td>
+              <td>${escapeHtml(String(row.latest_date ?? ""))}</td>
               <td>${formatPct(safeNumber(row.portfolio_weight))}</td>
               <td>${formatPct(safeNumber(row.benchmark_weight))}</td>
               <td>${formatPct(safeNumber(row.active_weight))}</td>

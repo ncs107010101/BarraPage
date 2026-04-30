@@ -7,7 +7,8 @@ This folder is the GitHub Pages static site for attribution demo.
 - Uses a UI almost identical to `BarraModel/attribution/frontend` (including tabs).
 - Loads only bundled sample data: `./data/sample_payload.json`.
 - Portfolio-level sections use full bundled sample payload.
-- Stock-level section loads `./data/stock_precomputed_latest.json` (latest-date weights + precomputed annualized contributions), so it does not fetch full historical stock rows.
+- Stock-level section reads `stock_precomputed` from `sample_payload.json` (backend-precomputed summary + factor rows), so it does not fetch full historical stock rows.
+- Keeps backward-compatible fallback to legacy `./data/stock_precomputed_latest.json` if `stock_precomputed` is missing.
 - Does not call backend APIs.
 - Disables `Validate / Run Attribution / Load Run / Upload payload` actions in GitHub Pages mode.
 
@@ -17,7 +18,7 @@ This folder is the GitHub Pages static site for attribution demo.
 - `styles.css`: same visual style as frontend
 - `app.js`: frontend logic with static-sample mode enabled
 - `data/sample_payload.json`: sample payload used for rendering
-- `data/stock_precomputed_latest.json`: compact stock-level precomputed dataset
+- `data/stock_precomputed_latest.json`: legacy fallback stock precomputed dataset
 
 ## Local preview
 

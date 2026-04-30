@@ -43,17 +43,17 @@
 
       <label class="field">
         <span>Data Directory</span>
-        <input id="dataDir" type="text" />
+        <input id="dataDir" type="text" value="C:\Users\CCH\Documents\New project\BarraModel\attribution\simulate_data" />
       </label>
 
       <label class="field">
         <span>Config Path</span>
-        <input id="configPath" type="text" />
+        <input id="configPath" type="text" value="C:\Users\CCH\Documents\New project\BarraModel\attribution\simulate_data\model_spec.yaml" />
       </label>
 
       <label class="field">
         <span>Output Root</span>
-        <input id="outputRoot" type="text" />
+        <input id="outputRoot" type="text" value="C:\Users\CCH\Documents\New project\BarraModel\attribution\runs" />
       </label>
 
       <label class="field">
@@ -302,7 +302,7 @@
           <div class="panel-head with-actions">
             <div>
               <h2>Risk Decomposition</h2>
-              <p>可切換 variance-covariance / downside，並以年化風險貢獻顯示</p>
+              <p>Active Risk (P-B) 拆解；可切換 variance-covariance / downside，並以年化 active variance 貢獻顯示</p>
             </div>
             <div class="segmented" id="riskModelSwitch">
               <button type="button" data-model="variance_covariance" class="active">Variance</button>
@@ -345,7 +345,7 @@
         <section id="stockPanel" class="panel reveal">
           <div class="panel-head">
             <h2>Stock-Level Attribution</h2>
-            <p>個股層級大類因子與子因子年化貢獻，含投組 / Benchmark 權重</p>
+            <p>個股報酬拆解（asset_return = Σ exposure×factor_return + specific）。在 equation mode 下，`return_ann(eq)` 與 `sum_factors(A_ann)` 可直接對帳。</p>
           </div>
           <div class="stock-toolbar">
             <input id="stockFilter" class="mini-input" type="text" placeholder="filter stock id..." />
@@ -362,7 +362,7 @@
               <option value="specific">columns: specific subfactors</option>
             </select>
             <select id="stockSortKey" class="mini-input">
-              <option value="asset_return" selected>sort by annualized return</option>
+              <option value="asset_return" selected>sort by raw annualized return</option>
               <option value="portfolio_weight">sort by portfolio weight</option>
               <option value="active_weight">sort by active weight</option>
               <option value="total_active">sort by annualized active contribution</option>
@@ -419,7 +419,7 @@
       </div>
     </aside>
   </div>
-  <script type="module" src="./app.js"></script>
+  <script src="./app.js"></script>
 </body>
 </html>
 

@@ -528,7 +528,7 @@ function onSyncFromPayload() {
     onIndustryModeChange();
     log("已用 payload config 同步 Scenario Overrides。", "success");
   } catch (err) {
-    log(`?郊 Scenario Overrides 憭望?: ${err.message}`, "error");
+    log(`Sync Scenario Overrides failed: ${err.message}`, "error");
   }
 }
 
@@ -1244,7 +1244,7 @@ function startRunProgress() {
     const softPct = Math.min(95, 5 + (elapsed / Math.max(estimated, 1)) * 90);
     state.runProgress.progress = Math.max(state.runProgress.progress, softPct);
     const eta = Math.max(0, estimated - elapsed);
-    renderRunProgress(state.runProgress.progress, "閮??脰?銝?..", elapsed, eta);
+    renderRunProgress(state.runProgress.progress, "Running...", elapsed, eta);
   }, 250);
 }
 
@@ -1280,7 +1280,14 @@ async function apiFetch(path, options = {}) {
   if (STATIC_DEMO_MODE) {
     throw new Error("Static demo mode does not call backend APIs.");
   }
-  const base = dom.apiBaseUrl.value.trim().replace(/\/+$/, "");
+  const baseRaw = dom.apiBaseUrl.value.trim();
+  if (!baseRaw) {
+    throw new Error("API Base URL is empty. Please set it, e.g. http://127.0.0.1:8000");
+  }
+  const base = /^https?:\/\//i.test(baseRaw) ? baseRaw.replace(/\/+$/, "") : `http://${baseRaw.replace(/\/+$/, "")}`;
+  if (dom.apiBaseUrl.value.trim() !== base) {
+    dom.apiBaseUrl.value = base;
+  }
   const url = `${base}${path}`;
   const init = {
     method: options.method ?? "GET",
@@ -1317,12 +1324,12 @@ async function onValidate() {
       },
     });
     if (report.ok) {
-      log(`Validate 摰?嚗arnings=${(report.warnings ?? []).length}`, "success");
+      log(`Validate passed, warnings=${(report.warnings ?? []).length}`, "success");
     } else {
-      log(`Validate 憭望?: ${(report.errors ?? []).join(" | ")}`, "error");
+      log(`Validate failed: ${(report.errors ?? []).join(" | ")}`, "error");
     }
   } catch (err) {
-    log(`Validate ?潛??航炊: ${err.message}`, "error");
+    log(`Validate API call failed: ${err.message}`, "error");
   }
 }
 
@@ -1330,10 +1337,10 @@ async function onRun() {
   if (dom.btnRun.disabled) {
     return;
   }
-  const pending = logPending("撌脤閮?隢?嚗迤?刻?蝞葉...");
+  const pending = logPending("Starting Run Attribution...");
   const originalBtnText = dom.btnRun.textContent;
   dom.btnRun.disabled = true;
-  dom.btnRun.textContent = "閮?銝?..";
+  dom.btnRun.textContent = "Running...";
   startRunProgress();
   try {
     const body = {
@@ -1346,19 +1353,19 @@ async function onRun() {
     if (runLabel) {
       body.run_label = runLabel;
     }
-    updateRunProgress(12, "敺垢璅∪??瑁?銝?..");
+    updateRunProgress(12, "Request sent. Waiting for backend...");
     const runResult = await apiFetch("/run-attribution", { method: "POST", body });
-    updateRunProgress(85, "璅∪?摰?嚗??亙?蝡航???..");
+    updateRunProgress(85, "Backend finished. Loading results...");
     state.runMeta = runResult;
     dom.runId.value = runResult.run_id ?? "";
     await loadRunPayload(runResult.run_id, { silentLog: true });
-    updateRunProgress(95, "?垢鞈??渡?銝?..");
+    updateRunProgress(95, "Loading results...");
     setActiveTab("portfolio");
-    resolvePendingLog(pending, `Run 摰?: ${runResult.run_id}`, "success");
-    finishRunProgress(true, `閮?摰?嚗?{runResult.run_id}`);
+    resolvePendingLog(pending, `Run completed: ${runResult.run_id}`, "success");
+    finishRunProgress(true, `Run completed: ${runResult.run_id}`);
   } catch (err) {
-    resolvePendingLog(pending, `Run 憭望?: ${err.message}`, "error");
-    finishRunProgress(false, `閮?憭望?嚗?{err.message}`);
+    resolvePendingLog(pending, `Run failed: ${err.message}`, "error");
+    finishRunProgress(false, `Run failed: ${err.message}`);
   } finally {
     dom.btnRun.disabled = false;
     dom.btnRun.textContent = originalBtnText;
@@ -1386,7 +1393,7 @@ async function loadRunPayload(runId, options = {}) {
     state.mode = "api";
     dom.dataMode.textContent = `API Run: ${runId}`;
     if (!silentLog) {
-      log(`撌脰???run payload: ${runId}`, "success");
+      log(`Loaded run payload: ${runId}`, "success");
     }
     initializeViewFiltersFromPayload();
     syncFactorTableRangeWithCurrentData(true);
@@ -1396,7 +1403,7 @@ async function loadRunPayload(runId, options = {}) {
       setActiveTab("portfolio");
     }
   } catch (err) {
-    log(`頛 run payload 憭望?: ${err.message}`, "error");
+    log(`Load run payload failed: ${err.message}`, "error");
   }
 }
 
@@ -1415,14 +1422,14 @@ async function onPayloadFileChange(event) {
     state.stockCache.summaryRows = [];
     state.mode = "local-file";
     dom.dataMode.textContent = `Local Payload: ${file.name}`;
-    log(`撌脰??交璈?payload: ${file.name}`, "success");
+    log(`Loaded local payload: ${file.name}`, "success");
     initializeViewFiltersFromPayload();
     syncFactorTableRangeWithCurrentData(true);
     state.stockView.selectedAssetId = "";
     renderAll();
     setActiveTab("portfolio");
   } catch (err) {
-    log(`payload 閫??憭望?: ${err.message}`, "error");
+    log(`Payload parse failed: ${err.message}`, "error");
   }
 }
 
@@ -1479,8 +1486,16 @@ async function loadBundledSamplePayload() {
     state.stockView.selectedAssetId = "";
     renderAll();
     setActiveTab("portfolio");
-    log("Static sample payload loaded.", "success");
-    void loadBundledStockPrecomputed();
+    const precomputedCount = Array.isArray(payload?.stock_precomputed?.summary)
+      ? payload.stock_precomputed.summary.length
+      : 0;
+    if (precomputedCount > 0) {
+      dom.dataMode.textContent = `Static Sample Loaded (${precomputedCount} precomputed stock rows)`;
+      log("Static sample payload loaded with stock_precomputed.", "success");
+    } else {
+      log("Static sample payload loaded. stock_precomputed missing, trying legacy precomputed/chunks...", "error");
+      void loadBundledStockPrecomputed();
+    }
   } catch (err) {
     log(`Static sample payload load failed: ${err.message}`, "error");
     dom.dataMode.textContent = "Static Sample Error";
@@ -1502,6 +1517,28 @@ async function loadBundledStockPrecomputed() {
       state.payload = {};
     }
     state.payload.stock_summary_precomputed = summaryRows;
+    // Legacy adapter: convert old summary_rows format into stock_precomputed shape.
+    state.payload.stock_precomputed = {
+      summary: summaryRows.map((row) => ({
+        frequency: normalizeDisplayFrequency(state.displayFrequency),
+        asset_id: String(row.asset_id ?? ""),
+        period_count: Math.max(1, safeInt(row.period_count || 1)),
+        portfolio_weight: safeNumber(row.portfolio_weight),
+        benchmark_weight: safeNumber(row.benchmark_weight),
+        active_weight: safeNumber(row.active_weight),
+        asset_return: safeNumber(row.asset_return_ann ?? row.asset_return),
+        asset_return_ann_raw: safeNumber(row.asset_return_ann ?? row.asset_return),
+        asset_return_ann_eq: safeNumber(row.total_active),
+        style_active: safeNumber(row.style_active),
+        industry_active: safeNumber(row.industry_active),
+        country_active: safeNumber(row.country_active),
+        custom_active: safeNumber(row.custom_active),
+        specific_active: safeNumber(row.specific_active),
+        total_active: safeNumber(row.total_active),
+        equation_mode: true,
+      })),
+      factors: [],
+    };
     state.stockCache.rowsKey = "";
     state.stockCache.filteredRows = [];
     state.stockCache.summaryKey = "";
@@ -1575,6 +1612,7 @@ function onRiskModelSwitch(event) {
   for (const item of dom.riskModelSwitch.querySelectorAll("button")) {
     item.classList.toggle("active", item === btn);
   }
+  renderKpi();
   renderRiskTable();
 }
 
@@ -1605,9 +1643,96 @@ function getRiskRows() {
   return filterByDateRange(rows, "date");
 }
 
+function getAnalytics() {
+  const analytics = state.payload?.analytics;
+  if (!analytics || typeof analytics !== "object") {
+    return null;
+  }
+  return analytics;
+}
+
+function getKpiAnalyticsForCurrentFrequency() {
+  const analytics = getAnalytics();
+  if (!analytics) {
+    return null;
+  }
+  const freq = normalizeDisplayFrequency(state.displayFrequency);
+  const byFreq = analytics.kpi_by_frequency ?? {};
+  const kpi = byFreq[freq];
+  return kpi && typeof kpi === "object" ? kpi : null;
+}
+
+function getRiskLatestAnalyticsForCurrentModel() {
+  const analytics = getAnalytics();
+  if (!analytics) {
+    return null;
+  }
+  const byModel = analytics.risk_latest ?? {};
+  const snapshot = byModel[state.riskModel];
+  return snapshot && typeof snapshot === "object" ? snapshot : null;
+}
+
+function buildStockWeightMap(rows) {
+  const map = new Map();
+  for (const row of rows ?? []) {
+    const date = String(row.date ?? "");
+    const assetId = String(row.asset_id ?? "");
+    if (!date || !assetId) continue;
+    const key = `${date}|${assetId}`;
+    if (!map.has(key)) {
+      map.set(key, {
+        portfolio_weight: safeNumber(row.portfolio_weight),
+        benchmark_weight: safeNumber(row.benchmark_weight),
+        active_weight: safeNumber(row.active_weight),
+      });
+    }
+  }
+  return map;
+}
+
+function convertStockDecompositionToCompat(decompRows, stockContributionRows) {
+  const weightMap = buildStockWeightMap(stockContributionRows);
+  return (decompRows ?? [])
+    .map((row) => {
+      const date = String(row.date ?? "");
+      const assetId = String(row.asset_id ?? "");
+      if (!date || !assetId) return null;
+      const w = weightMap.get(`${date}|${assetId}`) ?? {
+        portfolio_weight: 0,
+        benchmark_weight: 0,
+        active_weight: 0,
+      };
+      const factorId = String(row.factor_id ?? "UNKNOWN");
+      const factorGroup = normalizeFactorGroup(
+        row.factor_group ?? (factorId === "SPECIFIC_RETURN" ? "specific" : "custom")
+      );
+      const piece = safeNumber(row.factor_return_piece);
+      return {
+        date,
+        asset_id: assetId,
+        factor_id: factorId,
+        factor_group: factorGroup,
+        portfolio_weight: safeNumber(w.portfolio_weight),
+        benchmark_weight: safeNumber(w.benchmark_weight),
+        active_weight: safeNumber(w.active_weight),
+        asset_return: safeNumber(row.asset_return),
+        portfolio_contribution: piece,
+        benchmark_contribution: 0,
+        active_contribution: piece,
+        __equation_mode: true,
+      };
+    })
+    .filter(Boolean);
+}
+
 function getStockRows() {
-  const rows = state.payload?.stock_contributions ?? [];
-  const key = `${state.filters.dateFrom}|${state.filters.dateTo}|${rows.length}`;
+  const stockContributionRows = state.payload?.stock_contributions ?? [];
+  const stockDecompositionRows = state.payload?.stock_return_decomposition ?? [];
+  const useDecomposition = Array.isArray(stockDecompositionRows) && stockDecompositionRows.length > 0;
+  const rows = useDecomposition
+    ? convertStockDecompositionToCompat(stockDecompositionRows, stockContributionRows)
+    : stockContributionRows;
+  const key = `${state.filters.dateFrom}|${state.filters.dateTo}|${useDecomposition ? "decomp" : "legacy"}|${rows.length}|${stockContributionRows.length}`;
   if (state.stockCache.rowsKey !== key) {
     state.stockCache.rowsKey = key;
     state.stockCache.filteredRows = filterByDateRange(rows, "date");
@@ -1615,6 +1740,101 @@ function getStockRows() {
     state.stockCache.summaryRows = [];
   }
   return state.stockCache.filteredRows;
+}
+
+function getStockPrecomputedForCurrentFrequency() {
+  const freq = normalizeDisplayFrequency(state.displayFrequency);
+
+  const raw = state.payload?.stock_precomputed;
+  if (raw && typeof raw === "object") {
+    const summaryAll = Array.isArray(raw.summary) ? raw.summary : [];
+    const factorsAll = Array.isArray(raw.factors) ? raw.factors : [];
+    const summary = summaryAll
+      .filter((row) => normalizeDisplayFrequency(row.frequency) === freq)
+      .map((row) => ({
+        frequency: normalizeDisplayFrequency(row.frequency),
+        asset_id: String(row.asset_id ?? ""),
+        period_count: Math.max(1, safeInt(row.period_count || 1)),
+        portfolio_weight: safeNumber(row.portfolio_weight),
+        benchmark_weight: safeNumber(row.benchmark_weight),
+        active_weight: safeNumber(row.active_weight),
+        asset_return: safeNumber(row.asset_return),
+        asset_return_ann_raw: safeNumber(row.asset_return_ann_raw),
+        asset_return_ann_eq: safeNumber(row.asset_return_ann_eq),
+        style_active: safeNumber(row.style_active),
+        industry_active: safeNumber(row.industry_active),
+        country_active: safeNumber(row.country_active),
+        custom_active: safeNumber(row.custom_active),
+        specific_active: safeNumber(row.specific_active),
+        total_active: safeNumber(row.total_active),
+        equation_mode: true,
+      }))
+      .filter((row) => row.asset_id);
+    const factors = factorsAll
+      .filter((row) => normalizeDisplayFrequency(row.frequency) === freq)
+      .map((row) => ({
+        frequency: normalizeDisplayFrequency(row.frequency),
+        asset_id: String(row.asset_id ?? ""),
+        factor_id: String(row.factor_id ?? ""),
+        factor_group: normalizeFactorGroup(row.factor_group ?? "custom"),
+        portfolio_contribution_ann: safeNumber(row.portfolio_contribution_ann),
+        benchmark_contribution_ann: safeNumber(row.benchmark_contribution_ann),
+        active_contribution_ann: safeNumber(row.active_contribution_ann),
+      }))
+      .filter((row) => row.asset_id && row.factor_id);
+    if (summary.length > 0) {
+      return { summary, factors };
+    }
+  }
+
+  // Legacy fallback: older gitpage precomputed format with summary rows only.
+  const legacyRows = state.payload?.stock_summary_precomputed ?? [];
+  if (Array.isArray(legacyRows) && legacyRows.length > 0) {
+    const summary = legacyRows
+      .map((row) => ({
+        frequency: freq,
+        asset_id: String(row.asset_id ?? ""),
+        period_count: Math.max(1, safeInt(row.period_count || 1)),
+        portfolio_weight: safeNumber(row.portfolio_weight),
+        benchmark_weight: safeNumber(row.benchmark_weight),
+        active_weight: safeNumber(row.active_weight),
+        asset_return: safeNumber(row.asset_return_ann ?? row.asset_return),
+        asset_return_ann_raw: safeNumber(row.asset_return_ann ?? row.asset_return),
+        asset_return_ann_eq: safeNumber(row.total_active),
+        style_active: safeNumber(row.style_active),
+        industry_active: safeNumber(row.industry_active),
+        country_active: safeNumber(row.country_active),
+        custom_active: safeNumber(row.custom_active),
+        specific_active: safeNumber(row.specific_active),
+        total_active: safeNumber(row.total_active),
+        equation_mode: true,
+      }))
+      .filter((row) => row.asset_id);
+    const factors = [];
+    for (const row of legacyRows) {
+      const assetId = String(row.asset_id ?? "");
+      if (!assetId) continue;
+      const subfactorActive = row?.subfactor_active ?? {};
+      const subfactorGroupMap = row?.subfactor_group_map ?? {};
+      for (const [factorId, activeVal] of Object.entries(subfactorActive)) {
+        if (!factorId) continue;
+        factors.push({
+          frequency: freq,
+          asset_id: assetId,
+          factor_id: String(factorId),
+          factor_group: normalizeFactorGroup(subfactorGroupMap[factorId] ?? "custom"),
+          portfolio_contribution_ann: safeNumber(row?.subfactor_portfolio?.[factorId]),
+          benchmark_contribution_ann: safeNumber(row?.subfactor_benchmark?.[factorId]),
+          active_contribution_ann: safeNumber(activeVal),
+        });
+      }
+    }
+    if (summary.length > 0) {
+      return { summary, factors };
+    }
+  }
+
+  return null;
 }
 
 function getPeriodRows() {
@@ -1734,6 +1954,104 @@ function buildPeriodicTotalsSeries(rows, frequency = state.displayFrequency) {
 }
 
 function renderKpi() {
+  const precomputed = getKpiAnalyticsForCurrentFrequency();
+  if (precomputed) {
+    const annReturn = precomputed.annualized_return ?? {};
+    const annVarSample = precomputed.annualized_variance_sample ?? {};
+    const beta = precomputed.beta ?? {};
+    const sharpe = precomputed.sharpe_ratio ?? {};
+    const info = precomputed.information_ratio ?? {};
+    const activeModelMap = precomputed.annualized_variance_active_model_by_risk_model ?? {};
+    const annVarActiveModel = Object.prototype.hasOwnProperty.call(activeModelMap, state.riskModel)
+      ? activeModelMap[state.riskModel]
+      : null;
+
+    const cards = [
+      {
+        label: "Annualized Return",
+        value: formatPct(annReturn.portfolio),
+        valueRaw: annReturn.portfolio,
+        valueTone: "signed",
+        note: "Portfolio",
+        subRows: [
+          { label: "Benchmark", value: formatPct(annReturn.benchmark), raw: annReturn.benchmark, tone: "signed" },
+          { label: "Active", value: formatPct(annReturn.active), raw: annReturn.active, tone: "signed" },
+        ],
+      },
+      {
+        label: "Annualized Variance",
+        value: formatNum(annVarSample.portfolio, 6),
+        valueRaw: annVarSample.portfolio,
+        valueTone: "neutral",
+        note: "Sample(P/B) + Model(Active)",
+        subRows: [
+          {
+            label: "Benchmark(sample)",
+            value: formatNum(annVarSample.benchmark, 6),
+            raw: annVarSample.benchmark,
+            tone: "neutral",
+          },
+          {
+            label: `Active(model:${state.riskModel})`,
+            value: formatNum(annVarActiveModel, 6),
+            raw: annVarActiveModel,
+            tone: "neutral",
+          },
+        ],
+      },
+      {
+        label: "Beta",
+        value: formatNum(beta.portfolio, 4),
+        valueRaw: beta.portfolio,
+        valueTone: "neutral",
+        note: "vs benchmark",
+        subRows: [{ label: "Benchmark", value: formatNum(beta.benchmark, 4), raw: beta.benchmark, tone: "neutral" }],
+      },
+      {
+        label: "Sharpe Ratio",
+        value: formatNum(sharpe.portfolio, 4),
+        valueRaw: sharpe.portfolio,
+        valueTone: "signed",
+        note: "rf = 0",
+        subRows: [{ label: "Benchmark", value: formatNum(sharpe.benchmark, 4), raw: sharpe.benchmark, tone: "signed" }],
+      },
+      {
+        label: "Information Ratio",
+        value: formatNum(info.portfolio, 4),
+        valueRaw: info.portfolio,
+        valueTone: "signed",
+        note: "active return / tracking error (benchmark = 0)",
+        subRows: [{ label: "Benchmark", value: formatNum(info.benchmark, 4), raw: info.benchmark, tone: "neutral" }],
+      },
+    ];
+
+    dom.kpiGrid.innerHTML = cards
+      .map((card) => {
+        const mainTone = metricToneClass(card.valueRaw, card.valueTone);
+        const subRows = Array.isArray(card.subRows) ? card.subRows : [];
+        return `
+      <article class="kpi">
+        <div class="label">${escapeHtml(card.label)}</div>
+        <div class="value ${mainTone}">${escapeHtml(card.value)}</div>
+        <div class="note">${escapeHtml(card.note)}</div>
+        <div class="kpi-sub-grid">
+          ${subRows
+            .map((row) => {
+              const tone = metricToneClass(row.raw, row.tone ?? "signed");
+              return `<div class="kpi-sub-row">
+                <span class="kpi-sub-label">${escapeHtml(row.label)}</span>
+                <span class="kpi-sub-value ${tone}">${escapeHtml(row.value)}</span>
+              </div>`;
+            })
+            .join("")}
+        </div>
+      </article>
+    `;
+      })
+      .join("");
+    return;
+  }
+
   const totals = getTotalsRows();
   const freq = normalizeDisplayFrequency(state.displayFrequency);
   const periodic = buildPeriodicTotalsSeries(totals, freq);
@@ -1852,14 +2170,13 @@ function renderKpi() {
     })
     .join("");
 }
-
 function renderConfigSummary() {
   const cfg = state.payload?.meta?.config;
   if (!dom.configModalContent) {
     return;
   }
   if (!cfg) {
-    dom.configModalContent.innerHTML = `<p class="empty">撠頛 payload config???銵?run ????frontend_payload.json??/p>`;
+    dom.configModalContent.innerHTML = `<p class="empty">No payload config loaded. Load sample or upload frontend_payload.json.</p>`;
     return;
   }
 
@@ -2102,7 +2419,7 @@ function renderFactorRank() {
   dom.factorRankCaption.textContent = `${activeMode ? "active (A_ann)" : "non-active (P/B_ann)"} | ${sortText} | ${showText} | groups: ${groupsText} | shown ${rows.length}/${totalRows.length}`;
 
   if (rows.length === 0) {
-    dom.factorRank.innerHTML = `<p class="empty">?桀?瘝?蝚血?蝭拚璇辣??摮飛????/p>`;
+    dom.factorRank.innerHTML = `<p class="empty">No factor rows match current filters.</p>`;
     return;
   }
   const maxAbs = Math.max(...rows.map((r) => Math.abs(safeNumber(r.bar_value))), 1e-8);
@@ -2141,7 +2458,7 @@ function renderFactorRank() {
 function renderPortfolioGroupSummary() {
   const rows = [...getPeriodRows(), buildActiveSpecificPeriodRow()];
   if (rows.length === 0) {
-    dom.groupAttributionTableWrap.innerHTML = `<p class="empty">撠頛憭折???鞎Ｙ鞈???/p>`;
+    dom.groupAttributionTableWrap.innerHTML = `<p class="empty">No group attribution rows available.</p>`;
     return;
   }
 
@@ -2213,6 +2530,7 @@ function buildStockSummaryRows(rows) {
       trading_days: 0,
       period_count: 0,
       cum_return_mult: 1,
+      equation_mode: false,
       asset_return: 0,
       asset_return_ann: 0,
       asset_return_period: 0,
@@ -2256,6 +2574,7 @@ function buildStockSummaryRows(rows) {
         prev.portfolio_weight = safeNumber(row.portfolio_weight);
         prev.benchmark_weight = safeNumber(row.benchmark_weight);
         prev.active_weight = safeNumber(row.active_weight);
+        prev.equation_mode = Boolean(row.__equation_mode);
       }
     }
 
@@ -2299,7 +2618,7 @@ function buildStockSummaryRows(rows) {
   const out = [...byAsset.values()].map((row) => {
     const periodReturn = row.cum_return_mult - 1;
     const periodCount = Math.max(1, safeInt(row.period_count || 1));
-    const annualizedReturn = annualizeReturnByPeriodCount(periodReturn, periodCount, freq);
+    const annualizedReturnCompound = annualizeReturnByPeriodCount(periodReturn, periodCount, freq);
     const annualizationScale = annualizationScaleFromPeriodCount(periodCount, freq);
     const totalPortfolio =
       safeNumber(row.style_portfolio) +
@@ -2319,6 +2638,8 @@ function buildStockSummaryRows(rows) {
       safeNumber(row.country_active) +
       safeNumber(row.custom_active) +
       safeNumber(row.specific_active);
+    const totalActiveAnn = totalActive * annualizationScale;
+    const annualizedReturnEq = row.equation_mode ? totalActiveAnn : annualizedReturnCompound;
     const subfactorPortfolio = {};
     const subfactorBenchmark = {};
     const subfactorActive = {};
@@ -2334,8 +2655,9 @@ function buildStockSummaryRows(rows) {
     return {
       ...row,
       asset_return_period: periodReturn,
-      asset_return_ann: annualizedReturn,
-      asset_return: annualizedReturn,
+      asset_return_ann: annualizedReturnEq,
+      asset_return_ann_compound: annualizedReturnCompound,
+      asset_return: annualizedReturnEq,
       style_portfolio: safeNumber(row.style_portfolio) * annualizationScale,
       industry_portfolio: safeNumber(row.industry_portfolio) * annualizationScale,
       country_portfolio: safeNumber(row.country_portfolio) * annualizationScale,
@@ -2353,8 +2675,8 @@ function buildStockSummaryRows(rows) {
       specific_active: safeNumber(row.specific_active) * annualizationScale,
       total_portfolio: totalPortfolio * annualizationScale,
       total_benchmark: totalBenchmark * annualizationScale,
-      total_active: totalActive * annualizationScale,
-      return_active: totalActive * annualizationScale,
+      total_active: totalActiveAnn,
+      return_active: totalActiveAnn,
       subfactor_portfolio: subfactorPortfolio,
       subfactor_benchmark: subfactorBenchmark,
       subfactor_active: subfactorActive,
@@ -2486,28 +2808,20 @@ function buildStockDetailRowsFromSummaryRow(summaryRow, factorGroup) {
   );
 }
 
-function renderStockPanels() {
-  const usePrecomputedSummary = hasPrecomputedStockSummaryRows();
-  const stockRows = usePrecomputedSummary ? [] : getStockRows();
-  const baseSummaryRows = usePrecomputedSummary
-    ? getStockPrecomputedSummaryRows()
-    : getCachedStockSummaryRows(stockRows);
-
-  if (baseSummaryRows.length === 0) {
-    dom.stockSummaryWrap.innerHTML =
-      `<p class="empty">Static sample payload does not include stock_contributions rows.</p>`;
-    dom.stockDetailCaption.textContent = "No stock-level rows in this static sample.";
-    dom.stockDetailWrap.innerHTML = "";
-    return;
-  }
-
+function renderStockPanelsFromPrecomputed(precomputed) {
+  const factorRows = Array.isArray(precomputed?.factors) ? precomputed.factors : [];
+  let summary = Array.isArray(precomputed?.summary) ? [...precomputed.summary] : [];
   const q = state.stockView.query;
-  let summary = [...baseSummaryRows];
   if (q) {
     summary = summary.filter((row) => row.asset_id.toLowerCase().includes(q));
   }
   if (state.stockView.onlyPortfolioPositive) {
     summary = summary.filter((row) => safeNumber(row.portfolio_weight) > 0);
+  }
+  dom.stockValueMode.disabled = true;
+  if (state.stockView.valueMode !== "active") {
+    state.stockView.valueMode = "active";
+    dom.stockValueMode.value = "active";
   }
 
   const sortKey = state.stockView.sortKey;
@@ -2520,8 +2834,201 @@ function renderStockPanels() {
   });
 
   if (summary.length === 0) {
-    dom.stockSummaryWrap.innerHTML = `<p class="empty">?桀?瘝?蝚血?蝭拚璇辣?鞈???/p>`;
-    dom.stockDetailCaption.textContent = "找不到符合條件的個股。";
+    dom.stockSummaryWrap.innerHTML = `<p class="empty">目前沒有符合篩選條件的個股資料。</p>`;
+    dom.stockDetailCaption.textContent = "請先在上表選擇個股";
+    dom.stockDetailWrap.innerHTML = "";
+    return;
+  }
+
+  if (!summary.some((row) => row.asset_id === state.stockView.selectedAssetId)) {
+    state.stockView.selectedAssetId = summary[0].asset_id;
+  }
+  const selectedSummary = summary.find((row) => row.asset_id === state.stockView.selectedAssetId) ?? summary[0];
+  const showSubfactorColumns = state.stockView.factorGroup !== "all";
+  const subfactorGroup = showSubfactorColumns
+    ? normalizeFactorGroup(state.stockView.factorGroup)
+    : "all";
+
+  const subfactorIds = showSubfactorColumns
+    ? [...new Set(
+        factorRows
+          .filter((row) => row.factor_group === subfactorGroup)
+          .map((row) => row.factor_id)
+      )].sort((a, b) => a.localeCompare(b))
+    : [];
+
+  const factorMap = new Map();
+  for (const row of factorRows) {
+    factorMap.set(`${row.asset_id}||${row.factor_group}||${row.factor_id}`, safeNumber(row.active_contribution_ann));
+  }
+
+  let contributionHeaders = "";
+  if (showSubfactorColumns) {
+    const cols =
+      subfactorIds.length > 0
+        ? subfactorIds.map((fid) => `<th>${escapeHtml(fid)}(A_ann)</th>`).join("")
+        : `<th>NO_${escapeHtml(subfactorGroup.toUpperCase())}_SUBFACTOR(A_ann)</th>`;
+    contributionHeaders = `${cols}<th>${escapeHtml(subfactorGroup)}_sum(A_ann)</th>`;
+  } else {
+    contributionHeaders = `
+      <th>style(A_ann)</th>
+      <th>industry(A_ann)</th>
+      <th>country(A_ann)</th>
+      <th>custom(A_ann)</th>
+      <th>specific(A_ann)</th>
+      <th>sum_factors(A_ann)</th>
+    `;
+  }
+
+  dom.stockSummaryWrap.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>asset_id</th>
+          <th>portfolio_w</th>
+          <th>benchmark_w</th>
+          <th>active_w</th>
+          <th>return_ann(eq)</th>
+          ${contributionHeaders}
+        </tr>
+      </thead>
+      <tbody>
+        ${summary
+          .map((row) => {
+            const selected = row.asset_id === state.stockView.selectedAssetId ? "row-selected" : "";
+            let contributionCells = "";
+            if (showSubfactorColumns) {
+              const dynamicCells =
+                subfactorIds.length > 0
+                  ? subfactorIds
+                      .map((fid) => {
+                        const val = factorMap.get(`${row.asset_id}||${subfactorGroup}||${fid}`) ?? 0;
+                        return `<td>${formatPct(val)}</td>`;
+                      })
+                      .join("")
+                  : `<td>--</td>`;
+              const groupActive = safeNumber(row[`${subfactorGroup}_active`]);
+              contributionCells = `${dynamicCells}<td>${formatPct(groupActive)}</td>`;
+            } else {
+              contributionCells = `
+                <td>${formatPct(safeNumber(row.style_active))}</td>
+                <td>${formatPct(safeNumber(row.industry_active))}</td>
+                <td>${formatPct(safeNumber(row.country_active))}</td>
+                <td>${formatPct(safeNumber(row.custom_active))}</td>
+                <td>${formatPct(safeNumber(row.specific_active))}</td>
+                <td>${formatPct(safeNumber(row.total_active))}</td>
+              `;
+            }
+            return `<tr class="clickable-row ${selected}" data-stock-id="${escapeHtml(row.asset_id)}">
+              <td>${escapeHtml(row.asset_id)}</td>
+              <td>${formatPct(safeNumber(row.portfolio_weight))}</td>
+              <td>${formatPct(safeNumber(row.benchmark_weight))}</td>
+              <td>${formatPct(safeNumber(row.active_weight))}</td>
+              <td>${formatPct(safeNumber(row.asset_return_ann_eq))}</td>
+              ${contributionCells}
+            </tr>`;
+          })
+          .join("")}
+      </tbody>
+    </table>
+    <p class="caption">Equation mode（backend precomputed）: return_ann(eq) = sum_factors(A_ann), where asset_return = sum(exposure*factor_return) + specific_return. sort by raw annualized return uses asset_return_ann_raw.</p>
+  `;
+
+  for (const rowEl of dom.stockSummaryWrap.querySelectorAll("tr[data-stock-id]")) {
+    rowEl.addEventListener("click", () => {
+      state.stockView.selectedAssetId = String(rowEl.dataset.stockId || "");
+      renderStockPanels();
+    });
+  }
+
+  let detailRows = factorRows.filter((row) => row.asset_id === state.stockView.selectedAssetId);
+  if (state.stockView.factorGroup !== "all") {
+    detailRows = detailRows.filter((row) => row.factor_group === subfactorGroup);
+  }
+  detailRows.sort(
+    (a, b) => Math.abs(safeNumber(b.active_contribution_ann)) - Math.abs(safeNumber(a.active_contribution_ann))
+  );
+
+  dom.stockDetailCaption.textContent = `Asset: ${state.stockView.selectedAssetId} | column_view: ${
+    showSubfactorColumns ? `${subfactorGroup} subfactors` : "group totals"
+  } | mode: active | raw_ann=${formatPct(safeNumber(selectedSummary.asset_return_ann_raw))} | eq_ann=${formatPct(
+    safeNumber(selectedSummary.asset_return_ann_eq)
+  )}`;
+
+  if (detailRows.length === 0) {
+    dom.stockDetailWrap.innerHTML = `<p class="empty">No factor detail rows for selected stock.</p>`;
+    return;
+  }
+
+  dom.stockDetailWrap.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>factor_group</th>
+          <th>factor_id</th>
+          <th>A_ann</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${detailRows
+          .map((row) => {
+            const active = safeNumber(row.active_contribution_ann);
+            const tone = active >= 0 ? "good" : "bad";
+            return `<tr>
+              <td>${escapeHtml(row.factor_group)}</td>
+              <td>${escapeHtml(row.factor_id)}</td>
+              <td class="${tone}">${formatPct(active)}</td>
+            </tr>`;
+          })
+          .join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderStockPanels() {
+  const precomputed = getStockPrecomputedForCurrentFrequency();
+  if (precomputed) {
+    renderStockPanelsFromPrecomputed(precomputed);
+    return;
+  }
+
+  const stockRows = getStockRows();
+  if (stockRows.length === 0) {
+    dom.stockSummaryWrap.innerHTML =
+      `<p class="empty">No stock contribution data. Run attribution or load a payload with stock_contributions.</p>`;
+    dom.stockDetailCaption.textContent = "Load a run with stock contribution data first.";
+    dom.stockDetailWrap.innerHTML = "";
+    return;
+  }
+
+  const q = state.stockView.query;
+  let summary = [...getCachedStockSummaryRows(stockRows)];
+  if (q) {
+    summary = summary.filter((row) => row.asset_id.toLowerCase().includes(q));
+  }
+  if (state.stockView.onlyPortfolioPositive) {
+    summary = summary.filter((row) => safeNumber(row.portfolio_weight) > 0);
+  }
+  const equationMode = summary.some((row) => Boolean(row.equation_mode));
+  dom.stockValueMode.disabled = equationMode;
+  if (equationMode && state.stockView.valueMode !== "active") {
+    state.stockView.valueMode = "active";
+    dom.stockValueMode.value = "active";
+  }
+
+  const sortKey = state.stockView.sortKey;
+  const asc = state.stockView.sortDir === "asc";
+  summary.sort((a, b) => {
+    const av = safeNumber(a[sortKey]);
+    const bv = safeNumber(b[sortKey]);
+    if (av === bv) return a.asset_id.localeCompare(b.asset_id);
+    return asc ? av - bv : bv - av;
+  });
+
+  if (summary.length === 0) {
+    dom.stockSummaryWrap.innerHTML = `<p class="empty">目前沒有符合篩選條件的個股資料。</p>`;
+    dom.stockDetailCaption.textContent = "請先在上表選擇個股";
     dom.stockDetailWrap.innerHTML = "";
     return;
   }
@@ -2536,20 +3043,17 @@ function renderStockPanels() {
   const subfactorGroup = showSubfactorColumns
     ? normalizeFactorGroup(state.stockView.factorGroup)
     : "all";
-  const subfactorIds = showSubfactorColumns
-    ? usePrecomputedSummary
-      ? getSubfactorIdsForGroupFromSummaryRows(baseSummaryRows, subfactorGroup)
-      : getSubfactorIdsForGroup(stockRows, subfactorGroup)
-    : [];
+  const subfactorIds = showSubfactorColumns ? getSubfactorIdsForGroup(stockRows, subfactorGroup) : [];
 
   let contributionHeaders = "";
   if (showSubfactorColumns) {
     const suffix = stockModeActive ? "(A_ann)" : "(P/B_ann)";
+    const groupLabel = escapeHtml(subfactorGroup);
     const cols =
       subfactorIds.length > 0
         ? subfactorIds.map((fid) => `<th>${escapeHtml(fid)}${suffix}</th>`).join("")
         : `<th>NO_${escapeHtml(subfactorGroup.toUpperCase())}_SUBFACTOR${suffix}</th>`;
-    contributionHeaders = `${cols}<th>return${suffix}</th>`;
+    contributionHeaders = `${cols}<th>${groupLabel}_sum${suffix}</th>`;
   } else {
     contributionHeaders = stockModeActive
       ? `
@@ -2558,7 +3062,7 @@ function renderStockPanels() {
           <th>country(A_ann)</th>
           <th>custom(A_ann)</th>
           <th>specific(A_ann)</th>
-          <th>return(A_ann)</th>
+          <th>sum_factors(A_ann)</th>
       `
       : `
           <th>style(P/B_ann)</th>
@@ -2566,20 +3070,23 @@ function renderStockPanels() {
           <th>country(P/B_ann)</th>
           <th>custom(P/B_ann)</th>
           <th>specific(P/B_ann)</th>
-          <th>return(P/B_ann)</th>
+          <th>sum_factors(P/B_ann)</th>
       `;
   }
+  const returnHeader = equationMode ? "return_ann(eq)" : "asset_return_ann(raw)";
+  const summaryCaption = equationMode
+    ? "Equation mode: return_ann(eq) = sum_factors(A_ann), computed from asset_return = sum(exposure*factor_return) + specific_return."
+    : "sum_factors(...) or group_sum(...) equals the sum of displayed factor columns. asset_return_ann(raw) is raw stock return and uses a different basis.";
 
   dom.stockSummaryWrap.innerHTML = `
     <table>
       <thead>
         <tr>
           <th>asset_id</th>
-          <th>latest_date</th>
           <th>portfolio_w</th>
           <th>benchmark_w</th>
           <th>active_w</th>
-          <th>return_ann</th>
+          <th>${returnHeader}</th>
           ${contributionHeaders}
         </tr>
       </thead>
@@ -2604,10 +3111,13 @@ function renderStockPanels() {
                   : stockModeActive
                     ? `<td>--</td>`
                     : `<td>${formatPortfolioBenchmarkCell(null, null)}</td>`;
-              const returnCell = stockModeActive
-                ? `<td>${formatPct(safeNumber(row.return_active ?? row.total_active))}</td>`
-                : `<td>${formatPortfolioBenchmarkCell(row.total_portfolio, row.total_benchmark)}</td>`;
-              contributionCells = `${dynamicCells}${returnCell}`;
+              const groupActive = safeNumber(row[`${subfactorGroup}_active`]);
+              const groupPortfolio = safeNumber(row[`${subfactorGroup}_portfolio`]);
+              const groupBenchmark = safeNumber(row[`${subfactorGroup}_benchmark`]);
+              const groupSumCell = stockModeActive
+                ? `<td>${formatPct(groupActive)}</td>`
+                : `<td>${formatPortfolioBenchmarkCell(groupPortfolio, groupBenchmark)}</td>`;
+              contributionCells = `${dynamicCells}${groupSumCell}`;
             } else {
               contributionCells = stockModeActive
                 ? `
@@ -2616,7 +3126,7 @@ function renderStockPanels() {
               <td>${formatPct(safeNumber(row.country_active))}</td>
               <td>${formatPct(safeNumber(row.custom_active))}</td>
               <td>${formatPct(safeNumber(row.specific_active))}</td>
-              <td>${formatPct(safeNumber(row.return_active ?? row.total_active))}</td>
+              <td>${formatPct(safeNumber(row.total_active))}</td>
             `
                 : `
               <td>${formatPortfolioBenchmarkCell(row.style_portfolio, row.style_benchmark)}</td>
@@ -2629,7 +3139,6 @@ function renderStockPanels() {
             }
             return `<tr class="clickable-row ${selected}" data-stock-id="${escapeHtml(row.asset_id)}">
               <td>${escapeHtml(row.asset_id)}</td>
-              <td>${escapeHtml(String(row.latest_date ?? ""))}</td>
               <td>${formatPct(safeNumber(row.portfolio_weight))}</td>
               <td>${formatPct(safeNumber(row.benchmark_weight))}</td>
               <td>${formatPct(safeNumber(row.active_weight))}</td>
@@ -2640,6 +3149,7 @@ function renderStockPanels() {
           .join("")}
       </tbody>
     </table>
+    <p class="caption">${summaryCaption}</p>
   `;
 
   for (const rowEl of dom.stockSummaryWrap.querySelectorAll("tr[data-stock-id]")) {
@@ -2649,19 +3159,17 @@ function renderStockPanels() {
     });
   }
 
-  const detailRows = usePrecomputedSummary
-    ? buildStockDetailRowsFromSummaryRow(selectedSummary, state.stockView.factorGroup)
-    : buildStockDetailRows(
-        stockRows,
-        state.stockView.selectedAssetId,
-        state.stockView.factorGroup,
-        selectedSummary?.period_count ?? null
-      );
+  const detailRows = buildStockDetailRows(
+    stockRows,
+    state.stockView.selectedAssetId,
+    state.stockView.factorGroup,
+    selectedSummary?.period_count ?? null
+  );
   dom.stockDetailCaption.textContent = `Asset: ${state.stockView.selectedAssetId} | column_view: ${
     showSubfactorColumns ? `${subfactorGroup} subfactors` : "group totals"
-  } | detail_group: ${state.stockView.factorGroup} | mode: ${state.stockView.valueMode}${usePrecomputedSummary ? " | source: precomputed" : ""}`;
+  } | detail_group: ${state.stockView.factorGroup} | mode: ${state.stockView.valueMode}`;
   if (detailRows.length === 0) {
-    dom.stockDetailWrap.innerHTML = `<p class="empty">甇文?函??隞嗡?瘝?摮?摮???/p>`;
+    dom.stockDetailWrap.innerHTML = `<p class="empty">No factor detail rows for selected stock.</p>`;
     return;
   }
   dom.stockDetailWrap.innerHTML = `
@@ -2697,7 +3205,7 @@ function renderStockPanels() {
 function renderValidation() {
   const rows = state.payload?.validation ?? [];
   if (rows.length === 0) {
-    dom.validationBox.innerHTML = `<p class="empty">撠頛 validation 鞈???/p>`;
+    dom.validationBox.innerHTML = `<p class="empty">No validation rows available.</p>`;
     return;
   }
   dom.validationBox.innerHTML = `
@@ -2722,6 +3230,50 @@ function renderValidation() {
 }
 
 function renderRiskTable() {
+  const latestSnapshot = getRiskLatestAnalyticsForCurrentModel();
+  if (latestSnapshot) {
+    const rows = Array.isArray(latestSnapshot.rows) ? latestSnapshot.rows : [];
+    if (rows.length === 0) {
+      dom.riskTableWrap.innerHTML = `<p class="empty">No ${state.riskModel} risk rows in backend analytics.</p>`;
+      return;
+    }
+
+    const sumFactorSpecificAnn = safeNumber(latestSnapshot.sum_factor_specific_ann);
+    const totalAnn = safeNumber(latestSnapshot.total_ann);
+
+    dom.riskTableWrap.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>date</th>
+          <th>active_component_type</th>
+          <th>active_component_id</th>
+          <th>active_risk_contribution_ann</th>
+          <th>active_risk_share_pct</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows
+          .map((row) => {
+            const rcAnn = safeNumber(row.risk_contribution_ann);
+            const pct = safeNumber(row.risk_contribution_pct);
+            const tone = rcAnn >= 0 ? "good" : "bad";
+            return `<tr>
+              <td>${escapeHtml(String(row.date ?? latestSnapshot.date ?? ""))}</td>
+              <td>${escapeHtml(String(row.component_type ?? ""))}</td>
+              <td>${escapeHtml(String(row.component_id ?? ""))}</td>
+              <td class="${tone}">${formatNum(rcAnn, 8)}</td>
+              <td>${formatPct(pct)}</td>
+            </tr>`;
+          })
+          .join("")}
+      </tbody>
+    </table>
+    <p class="caption">sum(active factor + active specific) = ${formatNum(sumFactorSpecificAnn, 8)} | Active Annualized Variance(total) = ${formatNum(totalAnn, 8)}</p>
+  `;
+    return;
+  }
+
   const freq = normalizeDisplayFrequency(state.displayFrequency);
   const annualScale = periodsPerYearForFrequency(freq);
   const groupMap = buildFactorGroupMap();
@@ -2735,7 +3287,7 @@ function renderRiskTable() {
       return selectedGroups.has(grp);
     });
   if (rows.length === 0) {
-    dom.riskTableWrap.innerHTML = `<p class="empty">撠頛 ${state.riskModel} ?◢?芣?閫????/p>`;
+    dom.riskTableWrap.innerHTML = `<p class="empty">No ${state.riskModel} risk rows available.</p>`;
     return;
   }
   const latestDate = rows.map((r) => String(r.date)).sort().at(-1);
@@ -2746,16 +3298,25 @@ function renderRiskTable() {
         Math.abs(safeNumber(b.risk_contribution) * annualScale) -
         Math.abs(safeNumber(a.risk_contribution) * annualScale)
     );
+  const sumFactorSpecificAnn = latestRows
+    .filter((r) => {
+      const t = String(r.component_type ?? "");
+      return t === "factor" || t === "specific";
+    })
+    .reduce((acc, r) => acc + safeNumber(r.risk_contribution) * annualScale, 0);
+  const totalAnn = latestRows
+    .filter((r) => String(r.component_type ?? "") === "total")
+    .reduce((acc, r) => acc + safeNumber(r.risk_contribution) * annualScale, 0);
 
   dom.riskTableWrap.innerHTML = `
     <table>
       <thead>
         <tr>
           <th>date</th>
-          <th>component_type</th>
-          <th>component_id</th>
-          <th>risk_contribution_ann</th>
-          <th>risk_contribution_pct</th>
+          <th>active_component_type</th>
+          <th>active_component_id</th>
+          <th>active_risk_contribution_ann</th>
+          <th>active_risk_share_pct</th>
         </tr>
       </thead>
       <tbody>
@@ -2777,9 +3338,9 @@ function renderRiskTable() {
           .join("")}
       </tbody>
     </table>
+    <p class="caption">sum(active factor + active specific) = ${formatNum(sumFactorSpecificAnn, 8)} | Active Annualized Variance(total) = ${formatNum(totalAnn, 8)}</p>
   `;
 }
-
 function filterFactorRowsByTableRange(rows) {
   const from = state.factorTable.dateFrom || "";
   const to = state.factorTable.dateTo || "";
@@ -3005,6 +3566,4 @@ try {
   console.error("initialize failed:", err);
   initTabFallback();
 }
-
-
 

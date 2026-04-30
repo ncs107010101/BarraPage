@@ -112,6 +112,7 @@ const TOUR_ACTIVE_CLASS = "tour-target-active";
 const RUN_DURATION_STORE_KEY = "barra_attribution_run_durations_ms_v1";
 const STATIC_DEMO_MODE = true;
 const STATIC_SAMPLE_PAYLOAD_URL = "./data/sample_payload.json";
+const STATIC_STOCK_PRECOMPUTED_URL = "./data/stock_precomputed_latest.json";
 const STATIC_STOCK_CHUNKS_MANIFEST_URL = "./data/stock_chunks_manifest.json";
 
 const state = {
@@ -1472,17 +1473,47 @@ async function loadBundledSamplePayload() {
     state.stockCache.summaryKey = "";
     state.stockCache.summaryRows = [];
     state.mode = "static-sample";
-    dom.dataMode.textContent = "Static Sample Loaded (loading full stock data...)";
+    dom.dataMode.textContent = "Static Sample Loaded (loading stock data...)";
     initializeViewFiltersFromPayload();
     syncFactorTableRangeWithCurrentData(true);
     state.stockView.selectedAssetId = "";
     renderAll();
     setActiveTab("portfolio");
     log("Static sample payload loaded.", "success");
-    void loadBundledStockChunks();
+    void loadBundledStockPrecomputed();
   } catch (err) {
     log(`Static sample payload load failed: ${err.message}`, "error");
     dom.dataMode.textContent = "Static Sample Error";
+  }
+}
+
+async function loadBundledStockPrecomputed() {
+  try {
+    const resp = await fetch(STATIC_STOCK_PRECOMPUTED_URL, { cache: "no-store" });
+    if (!resp.ok) {
+      throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
+    }
+    const payload = await resp.json();
+    const summaryRows = Array.isArray(payload?.summary_rows) ? payload.summary_rows : [];
+    if (summaryRows.length === 0) {
+      throw new Error("summary_rows is empty");
+    }
+    if (!state.payload || typeof state.payload !== "object") {
+      state.payload = {};
+    }
+    state.payload.stock_summary_precomputed = summaryRows;
+    state.stockCache.rowsKey = "";
+    state.stockCache.filteredRows = [];
+    state.stockCache.summaryKey = "";
+    state.stockCache.summaryRows = [];
+    state.stockView.selectedAssetId = "";
+    const latestDate = String(payload?.latest_date ?? "").slice(0, 10);
+    dom.dataMode.textContent = `Static Sample Loaded (${summaryRows.length} stocks${latestDate ? ` @ ${latestDate}` : ""})`;
+    renderStockPanels();
+    log(`Loaded precomputed stock summary: ${summaryRows.length} stocks.`, "success");
+  } catch (err) {
+    log(`Static stock precomputed load failed: ${err.message}; fallback to chunked rows.`, "error");
+    void loadBundledStockChunks();
   }
 }
 
@@ -2341,6 +2372,16 @@ function getCachedStockSummaryRows(rows) {
   return state.stockCache.summaryRows;
 }
 
+function hasPrecomputedStockSummaryRows() {
+  const rows = state.payload?.stock_summary_precomputed;
+  return Array.isArray(rows) && rows.length > 0;
+}
+
+function getStockPrecomputedSummaryRows() {
+  const rows = state.payload?.stock_summary_precomputed ?? [];
+  return rows.filter((row) => row && String(row.asset_id ?? "").length > 0);
+}
+
 function getSubfactorIdsForGroup(rows, factorGroup) {
   const ids = new Set();
   const group = normalizeFactorGroup(factorGroup);
@@ -2349,6 +2390,20 @@ function getSubfactorIdsForGroup(rows, factorGroup) {
     const fid = String(row.factor_id ?? "");
     if (!fid) continue;
     ids.add(fid);
+  }
+  return [...ids].sort((a, b) => a.localeCompare(b));
+}
+
+function getSubfactorIdsForGroupFromSummaryRows(summaryRows, factorGroup) {
+  const ids = new Set();
+  const group = normalizeFactorGroup(factorGroup);
+  for (const row of summaryRows ?? []) {
+    const map = row?.subfactor_group_map ?? {};
+    for (const [fid, grp] of Object.entries(map)) {
+      if (!fid) continue;
+      if (normalizeFactorGroup(grp) !== group) continue;
+      ids.add(fid);
+    }
   }
   return [...ids].sort((a, b) => a.localeCompare(b));
 }
@@ -2401,9 +2456,44 @@ function buildStockDetailRows(rows, assetId, factorGroup, annualizationPeriodCou
     .sort((a, b) => Math.abs(safeNumber(b.active_contribution)) - Math.abs(safeNumber(a.active_contribution)));
 }
 
+function buildStockDetailRowsFromSummaryRow(summaryRow, factorGroup) {
+  if (!summaryRow || !summaryRow.asset_id) return [];
+  const subfactorPortfolio = summaryRow.subfactor_portfolio ?? {};
+  const subfactorBenchmark = summaryRow.subfactor_benchmark ?? {};
+  const subfactorActive = summaryRow.subfactor_active ?? {};
+  const subfactorGroupMap = summaryRow.subfactor_group_map ?? {};
+  const idSet = new Set([
+    ...Object.keys(subfactorPortfolio),
+    ...Object.keys(subfactorBenchmark),
+    ...Object.keys(subfactorActive),
+    ...Object.keys(subfactorGroupMap),
+  ]);
+  const out = [];
+  for (const fid of idSet) {
+    if (!fid) continue;
+    const grp = normalizeFactorGroup(subfactorGroupMap[fid] ?? "custom");
+    if (factorGroup !== "all" && grp !== factorGroup) continue;
+    out.push({
+      factor_group: grp,
+      factor_id: fid,
+      portfolio_contribution: safeNumber(subfactorPortfolio[fid]),
+      benchmark_contribution: safeNumber(subfactorBenchmark[fid]),
+      active_contribution: safeNumber(subfactorActive[fid]),
+    });
+  }
+  return out.sort(
+    (a, b) => Math.abs(safeNumber(b.active_contribution)) - Math.abs(safeNumber(a.active_contribution))
+  );
+}
+
 function renderStockPanels() {
-  const stockRows = getStockRows();
-  if (stockRows.length === 0) {
+  const usePrecomputedSummary = hasPrecomputedStockSummaryRows();
+  const stockRows = usePrecomputedSummary ? [] : getStockRows();
+  const baseSummaryRows = usePrecomputedSummary
+    ? getStockPrecomputedSummaryRows()
+    : getCachedStockSummaryRows(stockRows);
+
+  if (baseSummaryRows.length === 0) {
     dom.stockSummaryWrap.innerHTML =
       `<p class="empty">Static sample payload does not include stock_contributions rows.</p>`;
     dom.stockDetailCaption.textContent = "No stock-level rows in this static sample.";
@@ -2412,7 +2502,7 @@ function renderStockPanels() {
   }
 
   const q = state.stockView.query;
-  let summary = [...getCachedStockSummaryRows(stockRows)];
+  let summary = [...baseSummaryRows];
   if (q) {
     summary = summary.filter((row) => row.asset_id.toLowerCase().includes(q));
   }
@@ -2446,7 +2536,11 @@ function renderStockPanels() {
   const subfactorGroup = showSubfactorColumns
     ? normalizeFactorGroup(state.stockView.factorGroup)
     : "all";
-  const subfactorIds = showSubfactorColumns ? getSubfactorIdsForGroup(stockRows, subfactorGroup) : [];
+  const subfactorIds = showSubfactorColumns
+    ? usePrecomputedSummary
+      ? getSubfactorIdsForGroupFromSummaryRows(baseSummaryRows, subfactorGroup)
+      : getSubfactorIdsForGroup(stockRows, subfactorGroup)
+    : [];
 
   let contributionHeaders = "";
   if (showSubfactorColumns) {
@@ -2555,15 +2649,17 @@ function renderStockPanels() {
     });
   }
 
-  const detailRows = buildStockDetailRows(
-    stockRows,
-    state.stockView.selectedAssetId,
-    state.stockView.factorGroup,
-    selectedSummary?.period_count ?? null
-  );
+  const detailRows = usePrecomputedSummary
+    ? buildStockDetailRowsFromSummaryRow(selectedSummary, state.stockView.factorGroup)
+    : buildStockDetailRows(
+        stockRows,
+        state.stockView.selectedAssetId,
+        state.stockView.factorGroup,
+        selectedSummary?.period_count ?? null
+      );
   dom.stockDetailCaption.textContent = `Asset: ${state.stockView.selectedAssetId} | column_view: ${
     showSubfactorColumns ? `${subfactorGroup} subfactors` : "group totals"
-  } | detail_group: ${state.stockView.factorGroup} | mode: ${state.stockView.valueMode}`;
+  } | detail_group: ${state.stockView.factorGroup} | mode: ${state.stockView.valueMode}${usePrecomputedSummary ? " | source: precomputed" : ""}`;
   if (detailRows.length === 0) {
     dom.stockDetailWrap.innerHTML = `<p class="empty">甇文?函??隞嗡?瘝?摮?摮???/p>`;
     return;
